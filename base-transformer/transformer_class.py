@@ -170,6 +170,7 @@ class Transformer():
                 # Filter out arguments that are obviously not files
                 if not one_file.startswith('-'):
                     file_list.append(one_file)
+                    # Only bother to get a timestamp if we don't have one specified
                     if timestamp is None:
                         working_timestamp = __internal__.get_first_timestamp(one_file, working_timestamp)
         if timestamp is None and working_timestamp is not None:
