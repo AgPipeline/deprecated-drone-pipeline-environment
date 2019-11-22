@@ -49,6 +49,11 @@ RANDOM_GENERATOR = None
 # The LAT-LON EPSG code to use
 LAT_LON_EPSG_CODE = 4326
 
+# Names of files generated
+FILE_NAME_CSV = "rgb_plot.csv"
+FILE_NAME_GEO_CSV = "rgb_plot_geo.csv"
+FILE_NAME_BETYDB_CSV = "rgb_plot_betydb.csv"
+
 class __internal__():
     """Class containing functions for this file only
     """
@@ -58,7 +63,7 @@ class __internal__():
         """
 
     @staticmethod
-    def get_algorithm_definition_boolean(variable_name: str, default_value: bool = False) -> bool:
+    def get_algorithm_definition_bool(variable_name: str, default_value: bool = False) -> bool:
         """Returns the value of the algorithm definition as a boolean value
         Arguments:
             variable_name: the name of the variable to look up
@@ -495,7 +500,7 @@ class __internal__():
         return trait_list
 
     @staticmethod
-    def get_ext_file_list(source_files: list, known_exts: list) -> list:
+    def filter_file_list_by_ext(source_files: list, known_exts: list) -> list:
         """Returns the list of known files by extension
         Arguments:
             source_files: the list of source files to look through
@@ -512,6 +517,19 @@ class __internal__():
                 return_list.append(one_file)
 
         return return_list
+
+    @staticmethod
+    def get_csv_file_names(csv_path: str) -> list:
+        """Returns the list of csv file paths
+        Arguments:
+            csv_path: the base path for the csv files
+        Return:
+            Returns the list of file paths: default CSV file, Geostreams CSV file, BETYdb CSV file
+        """
+        return [os.path.join(csv_path, FILE_NAME_CSV),
+                os.path.join(csv_path, FILE_NAME_GEO_CSV),
+                os.path.join(csv_path, FILE_NAME_BETYDB_CSV)]
+
 
     @staticmethod
     def validate_calc_value(calc_value, variable_names: list) -> list:
@@ -564,16 +582,26 @@ class __internal__():
         __internal__.write_csv_file(filename, header, csv_data)
 
 
-
 def add_parameters(parser: argparse.ArgumentParser) -> None:
     """Adds parameters
     Arguments:
         parser: instance of argparse
     """
-    parser.add_argument('--csv_path', help='The path to use when generating the CSV files')
+    supported_files = [FILE_NAME_CSV + ': basic CSV file with calculated values']
+    if __internal__.get_algorithm_definition_bool('WRITE_GEOSTREAMS_CSV', True):
+        supported_files.append(FILE_NAME_BETYDB_CSV + ': TERRA REF Geostreams compatible CSV file')
+    if __internal__.get_algorithm_definition_bool('WRITE_BETYDB_CSV', True):
+        supported_files.append(FILE_NAME_BETYDB_CSV + ': BETYdb compatible CSV file')
 
-    parser.epilog = __internal__.get_algorithm_name() + \
-                    ' version ' + __internal__.get_algorithm_definition_str('VERSION', 'x.y') + \
+    parser.description = 'Plot level RGB algorithm: ' + __internal__.get_algorithm_name() + \
+                         ' version ' + __internal__.get_algorithm_definition_str('VERSION', 'x.y')
+
+    parser.add_argument('--csv_path', help='The path to use when generating the CSV files')
+    parser.add_argument('--geostreams_csv', action='store_true', help='Always create the TERRA REF Geostreams-compatible CSV file')
+    parser.add_argument('--betydb_csv', action='store_true', help='Always create the BETYdb-compatible CSV file')
+
+    parser.epilog = 'The following files are created in the specified csv path by default: ' + \
+                    '\n  ' + '\n  '.join(supported_files) + '\n' + \
                     ' author ' + __internal__.get_algorithm_definition_str('ALGORITHM_AUTHOR', 'mystery author') + \
                     ' ' + __internal__.get_algorithm_definition_str('ALGORITHM_AUTHOR_EMAIL', '(no email)')
 
@@ -614,19 +642,26 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     Return:
         Returns a dictionary with the results of processing
     """
-    # pylint: disable=unused-argument, too-many-statements, too-many-locals
+    # pylint: disable=unused-argument
+    # The following pylint disables are here because to satisfy them would make the code unreadable
+    # pylint: disable=too-many-statements, too-many-locals
+
+    # Environment checking
+    if not hasattr(algorithm_rgb, 'calculate'):
+        msg = "The 'calculate()' function was not found in algorithm_rgb.py"
+        logging.error(msg)
+        return {'code': -1001, 'error': msg}
+
     # Setup local variables
     variable_names = __internal__.get_algorithm_variable_names()
 
-    csv_file = os.path.join(transformer.args.csv_path, "rgb_plot.csv")
-    geostreams_csv_file = os.path.join(transformer.args.csv_path, "rgb_plot_geo.csv")
-    betydb_csv_file = os.path.join(transformer.args.csv_path, "rgb_plot_betydb.csv")
+    csv_file, geostreams_csv_file, betydb_csv_file = __internal__.get_csv_file_names(transformer.args.csv_path)
 
     datestamp, localtime = __internal__.get_time_stamps(check_md['timestamp'])
     cultivar = __internal__.find_metadata_value(full_md, ['germplasmName', 'cultivar'])
 
-    write_geostreams_csv = __internal__.get_algorithm_definition_boolean('WRITE_GEOSTREAMS_CSV', True)
-    write_betydb_csv = __internal__.get_algorithm_definition_boolean('WRITE_BETYDB_CSV', True)
+    write_geostreams_csv = transformer.args.geostreams_csv or __internal__.get_algorithm_definition_bool('WRITE_GEOSTREAMS_CSV', True)
+    write_betydb_csv = transformer.args.betydb_csv or __internal__.get_algorithm_definition_bool('WRITE_BETYDB_CSV', True)
 
     # Get default values and adjust as needed
     (csv_fields, csv_traits) = __internal__.get_csv_traits_table(variable_names)
@@ -642,7 +677,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     # Process the image files
     num_image_files = 0
     entries_written = 0
-    for one_file in __internal__.get_ext_file_list(check_md['list_files'](), transformer.supported_image_file_exts):
+    for one_file in __internal__.filter_file_list_by_ext(check_md['list_files'](), transformer.supported_image_file_exts):
 
         plot_name = None
         try:
@@ -675,7 +710,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
 
             # Write the data points geographically and otherwise
             for idx, trait_name in enumerate(variable_names):
-                # Geostreams can only handle one field  at a time so we write out one row per field/value pair
+                # Geostreams can only handle one field at a time so we write out one row per field/value pair
                 geo_traits['trait'] = trait_name
                 geo_traits['value'] = str(values[idx])
                 if write_geostreams_csv:
@@ -702,4 +737,4 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     if entries_written == 0:
         logging.warning("No entries were written to CSV files")
 
-    return {'code': 0, 'message': "Everything is going swimmingly"}
+    return {'code': 0}
