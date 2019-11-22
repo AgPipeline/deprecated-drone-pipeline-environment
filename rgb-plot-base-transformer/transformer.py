@@ -298,9 +298,9 @@ class __internal__():
         Return:
             A list consisting of the date (YYYY-MM-DD) and a local timestamp (YYYY-MM-DDTHH:MM:SS)
         """
-        timestamp = datetime.date.fromisoformat(iso_timestamp)
+        timestamp = datetime.datetime.strptime(iso_timestamp, "%Y-%m-%dT%H:%M:%S%z")
 
-        return [timestamp.strftime('%Y-%m-%s'), timestamp.strftime('%Y-%m-%dT%H:%M:%S')]
+        return [timestamp.strftime('%Y-%m-%d'), timestamp.strftime('%Y-%m-%dT%H:%M:%S')]
 
     @staticmethod
     def get_open_backoff(prev: float = None) -> float:
@@ -464,6 +464,10 @@ class __internal__():
             logging.warning("The number of variable labels doesn't match the number of variable names")
             logging.warning("Continuing with defined variable labels")
 
+        logging.debug("Variable names: %s", str(variable_names))
+        logging.debug("Variable labels: %s", str(variable_labels))
+        logging.debug("Variable units: %s", str(variable_units))
+
         for idx, field_name in enumerate(variable_names):
             field_header = field_name
             if idx < variable_labels_len:
@@ -472,7 +476,8 @@ class __internal__():
                 field_header += ' (%s)' % variable_units[idx]
             header_fields.append(field_header)
 
-        return header_fields
+        logging.debug("Header fields: %s", str(CSV_TRAIT_NAMES + header_fields))
+        return CSV_TRAIT_NAMES + header_fields
 
     @staticmethod
     def get_csv_traits_table(variable_names: list) -> tuple:
@@ -644,9 +649,9 @@ def add_parameters(parser: argparse.ArgumentParser) -> None:
     parser.description = 'Plot level RGB algorithm: ' + __internal__.get_algorithm_name() + \
                          ' version ' + __internal__.get_algorithm_definition_str('VERSION', 'x.y')
 
-    parser.add_argument('--csv_path', help='The path to use when generating the CSV files')
-    parser.add_argument('--geostreams_csv', action='store_true', help='Always create the TERRA REF Geostreams-compatible CSV file')
-    parser.add_argument('--betydb_csv', action='store_true', help='Always create the BETYdb-compatible CSV file')
+    parser.add_argument('--csv_path', help='the path to use when generating the CSV files')
+    parser.add_argument('--geostreams_csv', action='store_true', help='override to always create the TERRA REF Geostreams-compatible CSV file')
+    parser.add_argument('--betydb_csv', action='store_true', help='override to always create the BETYdb-compatible CSV file')
 
     parser.epilog = 'The following files are created in the specified csv path by default: ' + \
                     '\n  ' + '\n  '.join(supported_files) + '\n' + \
@@ -738,16 +743,12 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
 
             # Make the call and check the results
             calc_value = algorithm_rgb.calculate(image_pix)
+            logging.debug("Calculated value is %s for file: %s", str(calc_value), one_file)
             if calc_value is None:
                 continue
 
             values = __internal__.validate_calc_value(calc_value, variable_names)
-
-            csv_traits['site'] = plot_name
-            csv_traits['timestamp'] = datestamp
-            csv_traits['lat'] = str(centroid.GetY())
-            csv_traits['lon'] = str(centroid.GetX())
-            __internal__.write_trait_csv(csv_file, csv_header, csv_fields, csv_traits)
+            logging.debug("Verified values are %s", str(values))
 
             geo_traits['site'] = plot_name
             geo_traits['lat'] = str(centroid.GetY())
@@ -764,9 +765,16 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
                 if write_geostreams_csv:
                     __internal__.write_trait_csv(geostreams_csv_file, geo_csv_header, geo_fields, geo_traits)
 
-                # BETYdb can handle wide rows with multiple values so we just set the field
+                # csv and BETYdb can handle wide rows with multiple values so we just set the field
                 # values here and write the single row after the loop
+                csv_traits[variable_names[idx]] = str(values[idx])
                 bety_traits[variable_names[idx]] = str(values[idx])
+
+            csv_traits['site'] = plot_name
+            csv_traits['timestamp'] = datestamp
+            csv_traits['lat'] = str(centroid.GetY())
+            csv_traits['lon'] = str(centroid.GetX())
+            __internal__.write_trait_csv(csv_file, csv_header, csv_fields, csv_traits)
 
             bety_traits['site'] = plot_name
             bety_traits['local_datetime'] = localtime
