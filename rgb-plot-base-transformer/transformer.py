@@ -103,19 +103,37 @@ class __internal__():
         return __internal__.get_algorithm_definition_str('ALGORITHM_NAME', 'unknown algorithm')
 
     @staticmethod
-    def get_algorithm_variable_names() -> list:
+    def get_algorithm_variable_list(definition_name: str) -> list:
+        """Returns a list containing the variable information defined by the algorithm
+        Arguments:
+            definition_name: name of the variable definition to look up
+        Return:
+            A list of variable strings
+        Note:
+            Assumes that multiple variable-related strings are comma separated
+        """
+        if not hasattr(algorithm_rgb, definition_name):
+            raise RuntimeError("Unable to find %s defined in algorithm_rgb code" % definition_name)
+
+        names = getattr(algorithm_rgb, definition_name).strip()
+        if not names:
+            raise RuntimeError("Empty %s definition specified in algorithm_rgb code" % definition_name)
+
+        return names.split(',')
+
+    @staticmethod
+    def get_algorithm_variable_labels() -> list:
         """Returns a list containing all the variable names defined by the algorithm
         Return:
             A list of variable names
         """
-        if not hasattr(algorithm_rgb, 'VARIABLE_NAMES'):
-            raise RuntimeError("Unable to find VARIABLE_NAMES defined in algorithm_rgb code")
+        return_labels = []
+        if hasattr(algorithm_rgb, 'VARIABLE_LABELS'):
+            labels = getattr(algorithm_rgb, 'VARIABLE_LABELS').strip()
+            if labels:
+                return_labels = labels.split(',')
 
-        names = getattr(algorithm_rgb, 'VARIABLE_NAMES').strip()
-        if not names:
-            raise RuntimeError("Empty VARIABLE_NAMES definition specified in algorithm_rgb code")
-
-        return names.split(',')
+        return return_labels
 
     @staticmethod
     def recursive_metadata_search(metadata: dict, search_key: str, special_key: str = None) -> str:
@@ -427,6 +445,36 @@ class __internal__():
         return ""
 
     @staticmethod
+    def get_csv_header_fields() -> list:
+        """Returns the list of header fields incorporating variable names, units, and labels
+        Return:
+             A list of strings that can be used as the header to a CSV file
+        """
+        header_fields = []
+        variable_names = __internal__.get_algorithm_variable_list('VARIABLE_NAMES')
+        variable_units = __internal__.get_algorithm_variable_list('VARIABLE_UNITS')
+        variable_units_len = len(variable_units)
+        variable_labels = __internal__.get_algorithm_variable_labels()
+        variable_labels_len = len(variable_labels)
+
+        if variable_units_len != len(variable_names):
+            logging.warning("The number of variable units doesn't match the number of variable names")
+            logging.warning("Continuing with defined variable units")
+        if variable_labels_len and variable_labels_len != len(variable_names):
+            logging.warning("The number of variable labels doesn't match the number of variable names")
+            logging.warning("Continuing with defined variable labels")
+
+        for idx, field_name in enumerate(variable_names):
+            field_header = field_name
+            if idx < variable_labels_len:
+                field_header += ' %s' % variable_labels[idx]
+            if idx < variable_units_len:
+                field_header += ' (%s)' % variable_units[idx]
+            header_fields.append(field_header)
+
+        return header_fields
+
+    @staticmethod
     def get_csv_traits_table(variable_names: list) -> tuple:
         """Returns the field names and default trait values
         Arguments:
@@ -653,7 +701,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
         return {'code': -1001, 'error': msg}
 
     # Setup local variables
-    variable_names = __internal__.get_algorithm_variable_names()
+    variable_names = __internal__.get_algorithm_variable_list('VARIABLE_NAMES')
 
     csv_file, geostreams_csv_file, betydb_csv_file = __internal__.get_csv_file_names(transformer.args.csv_path)
 
@@ -670,7 +718,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     (bety_fields, bety_traits) = __internal__.get_bety_traits_table(variable_names)
     bety_traits['species'] = cultivar
 
-    csv_header = ','.join(map(str, csv_fields))
+    csv_header = ','.join(map(str, __internal__.get_csv_header_fields()))
     geo_csv_header = ','.join(map(str, geo_fields))
     bety_csv_header = ','.join(map(str, bety_fields))
 
