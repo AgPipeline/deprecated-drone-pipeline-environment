@@ -38,7 +38,7 @@ TRAIT_NAME_MAP = {
 }
 
 # Trait names arrays
-CSV_TRAIT_NAMES = ['germplasmName', 'site', 'timestamp', 'lat', 'lon']
+CSV_TRAIT_NAMES = ['germplasmName', 'site', 'timestamp', 'lat', 'lon', 'citation_author', 'citation_year', 'citation_title']
 GEO_TRAIT_NAMES = ['site', 'trait', 'lat', 'lon', 'dp_time', 'source', 'value', 'timestamp']
 BETYDB_TRAIT_NAMES = ['local_datetime', 'access_level', 'species', 'site', 'citation_author', 'citation_year', 'citation_title',
                       'method']
@@ -492,6 +492,13 @@ class __internal__():
         traits = {}
         for field_name in fields:
             traits[field_name] = __internal__.get_default_trait(field_name)
+
+        if hasattr(algorithm_rgb, 'CITATION_AUTHOR') and getattr(algorithm_rgb, 'CITATION_AUTHOR'):
+            traits['citation_author'] = getattr(algorithm_rgb, 'CITATION_AUTHOR')
+        if hasattr(algorithm_rgb, 'CITATION_TITLE') and getattr(algorithm_rgb, 'CITATION_TITLE'):
+            traits['citation_title'] = getattr(algorithm_rgb, 'CITATION_TITLE')
+        if hasattr(algorithm_rgb, 'CITATION_YEAR') and getattr(algorithm_rgb, 'CITATION_YEAR'):
+            traits['citation_year'] = getattr(algorithm_rgb, 'CITATION_YEAR')
 
         return (fields, traits)
 
