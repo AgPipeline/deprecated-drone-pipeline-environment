@@ -2,3 +2,7 @@
 	path = transformer-soilmask/soilmask-code
 	url = https://github.com/AgPipeline/transformer-soilmask
 	branch = typo_fixes
+[submodule "transformer-plotclip/plotclip-code"]
+	path = transformer-plotclip/plotclip-code
+	url = https://github.com/AgPipeline/transformer-plotclip.git
+	branch = develop

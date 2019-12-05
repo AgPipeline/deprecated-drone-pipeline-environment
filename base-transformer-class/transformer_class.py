@@ -128,13 +128,12 @@ class Transformer():
         """
         self.sensor = None
         self.args = None
-        self.working_epsg = None
 
     @property
-    def default_epsg(self) -> str:
+    def default_epsg(self) -> int:
         """Returns the current working EPSG code
         """
-        return self.working_epsg
+        return 4326
 
     @property
     def supported_image_file_exts(self):
@@ -150,8 +149,7 @@ class Transformer():
             Returns the EPSG code loaded from the file. None is returned if there is a problem or the file
             doesn't have an EPSG code
         """
-        self.working_epsg = tr_get_epsg(source_path)
-        return self.working_epsg
+        return tr_get_epsg(source_path)
 
     def get_image_file_geobounds(self, source_path: str) -> list:
         """Uses gdal functionality to retrieve rectilinear boundaries from the file
