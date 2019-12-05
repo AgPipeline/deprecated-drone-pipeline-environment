@@ -1,7 +1,7 @@
 FROM agdrone/drone-base-image:latest
 LABEL maintainer="Chris Schnaufer <schnaufer@email.arizona.edu>"
 
-COPY requirements.txt packages.txt /home/extractor/
+COPY soilmask-code/requirements.txt soilmask-code/packages.txt /home/extractor/
 
 USER root
 
@@ -17,15 +17,14 @@ RUN [ -s /home/extractor/packages.txt ] && \
         rm /home/extractor/packages.txt)
 
 RUN [ -s /home/extractor/requirements.txt ] && \
-    (echo "Install python modules" && \
-    python -m pip install -U --no-cache-dir pip && \
-    python -m pip install --no-cache-dir setuptools && \
-    python -m pip install --no-cache-dir -r /home/extractor/requirements.txt && \
-    rm /home/extractor/requirements.txt) || \
-    (echo "No python modules to install" && \
-    rm /home/extractor/requirements.txt)
+    (echo 'Install python modules' && \
+    python3 -m pip install -U --no-cache-dir pip && \
+    python3 -m pip install --no-cache-dir setuptools && \
+     python3 -m pip install --no-cache-dir -r /home/extractor/requirements.txt && \
+     rm /home/extractor/requirements.txt) || \
+    (echo 'No python modules to install' && \
+     rm /home/extractor/requirements.txt)
 
 USER extractor
 
-COPY *.py /home/extractor/
-
+COPY soilmask-code/configuration.py soilmask-code/transformer.py /home/extractor/

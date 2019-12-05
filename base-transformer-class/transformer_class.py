@@ -7,7 +7,13 @@ import datetime
 import logging
 import piexif
 
+from terrautils.imagefile import get_epsg as tr_get_epsg, \
+                                 image_get_geobounds as tr_image_get_geobounds
+import terrautils.lemnatec
+
 import configuration
+
+terrautils.lemnatec.SENSOR_METADATA_CACHE = os.path.dirname(os.path.realpath(__file__))
 
 # EXIF tags to look for
 EXIF_ORIGIN_TIMESTAMP = 36867         # Capture timestamp
@@ -122,12 +128,56 @@ class Transformer():
         """
         self.sensor = None
         self.args = None
+        self.working_epsg = None
+
+    @property
+    def default_epsg(self) -> str:
+        """Returns the current working EPSG code
+        """
+        return self.working_epsg
 
     @property
     def supported_image_file_exts(self):
         """Returns the list of supported image file extension strings (in lower case)
         """
         return ['tif', 'tiff', 'jpg']
+
+    def get_image_file_epsg(self, source_path: str) -> str:
+        """Returns the EPSG of the georeferenced image file
+        Arguments:
+            source_path: the path to the image to load the EPSG code from
+        Return:
+            Returns the EPSG code loaded from the file. None is returned if there is a problem or the file
+            doesn't have an EPSG code
+        """
+        self.working_epsg = tr_get_epsg(source_path)
+        return self.working_epsg
+
+    def get_image_file_geobounds(self, source_path: str) -> list:
+        """Uses gdal functionality to retrieve rectilinear boundaries from the file
+        Args:
+            source_path(str): path of the file to get the boundaries from
+        Returns:
+            The upper-left and calculated lower-right boundaries of the image in a list upon success.
+            The values are returned in following order: min_y, max_y, min_x, max_x. A list of numpy.nan
+            is returned if the boundaries can't be determined
+        """
+        # pylint: disable=no-self-use
+        return tr_image_get_geobounds(source_path)
+
+    def generate_transformer_md(self) -> dict:
+        """Generates metadata about this transformer
+        Returns:
+            Returns the transformer metadata
+        """
+        # pylint: disable=no-self-use
+        return {
+            'version': configuration.TRANSFORMER_VERSION,
+            'name': configuration.TRANSFORMER_NAME,
+            'author': configuration.AUTHOR_NAME,
+            'description': configuration.TRANSFORMER_DESCRIPTION,
+            'repository': {'repUrl': configuration.REPOSITORY}
+        }
 
     # pylint: disable=no-self-use
     def add_parameters(self, parser: argparse.ArgumentParser) -> None:
@@ -189,7 +239,7 @@ class Transformer():
                     'container_name': None,
                     'target_container_name': None,
                     'trigger_name': None,
-                    'context_md': parse_md,
+                    'context_md': None,
                     'working_folder': args.working_space,
                     'list_files': lambda: file_list
                    }
