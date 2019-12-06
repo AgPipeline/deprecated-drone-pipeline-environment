@@ -298,7 +298,16 @@ class __internal__():
         Return:
             A list consisting of the date (YYYY-MM-DD) and a local timestamp (YYYY-MM-DDTHH:MM:SS)
         """
-        timestamp = datetime.datetime.strptime(iso_timestamp, "%Y-%m-%dT%H:%M:%S%z")
+        # Strip the offset from the string
+        time_date_sep = iso_timestamp.find('T')
+        time_offset_sep = iso_timestamp.rfind('-')
+        if 0 <= time_date_sep < time_offset_sep:
+            # We have a time offset
+            working_timestamp = iso_timestamp[: time_offset_sep]
+        else:
+            working_timestamp = iso_timestamp
+
+        timestamp = datetime.datetime.strptime(working_timestamp, "%Y-%m-%dT%H:%M:%S")
 
         return [timestamp.strftime('%Y-%m-%d'), timestamp.strftime('%Y-%m-%dT%H:%M:%S')]
 
@@ -579,6 +588,25 @@ class __internal__():
         return return_list
 
     @staticmethod
+    def determine_csv_path(path_list: list) -> str:
+        """Iterates over the list of paths and returns the first valid one
+        Arguments:
+            path_list: the list of paths to iterate over
+        Return:
+            The first found path that exists, or None if no paths are found
+        """
+        if not path_list:
+            return None
+
+        for one_path in path_list:
+            if not one_path:
+                continue
+            if os.path.exists(one_path) and os.path.isdir(one_path):
+                return one_path
+
+        return None
+
+    @staticmethod
     def get_csv_file_names(csv_path: str) -> list:
         """Returns the list of csv file paths
         Arguments:
@@ -657,7 +685,8 @@ def add_parameters(parser: argparse.ArgumentParser) -> None:
                          ' version ' + __internal__.get_algorithm_definition_str('VERSION', 'x.y')
 
     parser.add_argument('--csv_path', help='the path to use when generating the CSV files')
-    parser.add_argument('--geostreams_csv', action='store_true', help='override to always create the TERRA REF Geostreams-compatible CSV file')
+    parser.add_argument('--geostreams_csv', action='store_true',
+                        help='override to always create the TERRA REF Geostreams-compatible CSV file')
     parser.add_argument('--betydb_csv', action='store_true', help='override to always create the BETYdb-compatible CSV file')
 
     parser.epilog = 'The following files are created in the specified csv path by default: ' + \
@@ -715,13 +744,19 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     # Setup local variables
     variable_names = __internal__.get_algorithm_variable_list('VARIABLE_NAMES')
 
-    csv_file, geostreams_csv_file, betydb_csv_file = __internal__.get_csv_file_names(transformer.args.csv_path)
+    csv_file, geostreams_csv_file, betydb_csv_file = __internal__.get_csv_file_names(
+        __internal__.determine_csv_path([transformer.args.csv_path, check_md['working_folder']]))
+    logging.debug("Calculated default CSV path: %s", csv_file)
+    logging.debug("Calculated geostreams CSV path: %s", geostreams_csv_file)
+    logging.debug("Calculated EBTYdb CSV path: %s", betydb_csv_file)
 
     datestamp, localtime = __internal__.get_time_stamps(check_md['timestamp'])
     cultivar = __internal__.find_metadata_value(full_md, ['germplasmName', 'cultivar'])
 
     write_geostreams_csv = transformer.args.geostreams_csv or __internal__.get_algorithm_definition_bool('WRITE_GEOSTREAMS_CSV', True)
     write_betydb_csv = transformer.args.betydb_csv or __internal__.get_algorithm_definition_bool('WRITE_BETYDB_CSV', True)
+    logging.info("Writing geostreams csv file: %s", "True" if write_geostreams_csv else "False")
+    logging.info("Writing BETYdb csv file: %s", "True" if write_betydb_csv else "False")
 
     # Get default values and adjust as needed
     (csv_fields, csv_traits) = __internal__.get_csv_traits_table(variable_names)
@@ -800,4 +835,24 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     if entries_written == 0:
         logging.warning("No entries were written to CSV files")
 
-    return {'code': 0}
+    # Prepare the return information
+    file_md = []
+    if entries_written:
+        file_md.append({
+            'path': csv_file,
+            'key': 'csv'
+        })
+        if write_geostreams_csv:
+            file_md.append({
+                'path': geostreams_csv_file,
+                'key': 'csv'
+            })
+        if write_betydb_csv:
+            file_md.append({
+                'path': betydb_csv_file,
+                'key': 'csv'
+            })
+
+    return {'code': 0,
+            'file': file_md
+            }
