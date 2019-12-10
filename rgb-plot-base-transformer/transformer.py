@@ -136,52 +136,66 @@ class __internal__():
         return return_labels
 
     @staticmethod
-    def recursive_metadata_search(metadata: dict, search_key: str, special_key: str = None) -> str:
+    def recursive_metadata_search(metadata_list: list, search_key: str, special_key: str = None) -> str:
         """Performs a depth-first search for the key in the metadata and returns the found value
         Arguments:
-            metadata: the metadata in which to look
+            metadata_list: the metadata in which to look
             search_key: the key to look for in the metadata
             special_key: optional special key to look up the key under. If specified and found, the found value takes precedence
         Return:
             Returns the found key value, or an empty string
         Notes:
-            The metadata is searched recursively for the key as additional metadata dictionary values are found
-            If a key is found under the special key, it will be returned regardless of whether there's a
-            key found elsewhere in the metadata
+            The metadata is searched recursively for the key. If a key is found under the special key, it will be
+            returned regardless of whether there's a key found elsewhere in the metadata
         """
         top_found_name = None
         return_found_name = ''
-        for key in metadata:
-            if key == search_key:
-                top_found_name = metadata[key]
-            if special_key and key == special_key:
-                if isinstance(metadata[key], dict):
-                    temp_found_name = __internal__.recursive_metadata_search(metadata[key], search_key, special_key)
+        for metadata in metadata_list:
+            for key in metadata:
+                if key == search_key:
+                    top_found_name = metadata[key]
+                if special_key and key == special_key:
+                    if isinstance(metadata[key], dict):
+                        temp_found_name = __internal__.recursive_metadata_search([metadata[key]], search_key, special_key)
+                        if temp_found_name:
+                            return_found_name = str(temp_found_name)
+                            break
+                elif isinstance(metadata[key], dict):
+                    temp_found_name = __internal__.recursive_metadata_search([metadata[key]], search_key, special_key)
                     if temp_found_name:
-                        return_found_name = str(temp_found_name)
-                        break
-            elif isinstance(metadata[key], dict):
-                temp_found_name = __internal__.recursive_metadata_search(metadata[key], search_key, special_key)
-                if temp_found_name:
-                    top_found_name = str(temp_found_name)
+                        top_found_name = str(temp_found_name)
 
         return top_found_name if top_found_name is not None else return_found_name
 
     @staticmethod
-    def find_metadata_value(metadata: dict, key_terms: list) -> str:
+    def find_metadata_value(metadata_list: list, key_terms: list) -> str:
         """Returns the first found value associated with a key
         Arguments:
-            metadata: the metadata to search
+            metadata_list: the metadata to search
             key_terms: the keys to look for
         Returns:
             Returns the found value or an empty string
         """
         for one_key in key_terms:
-            value = __internal__.recursive_metadata_search(metadata, one_key)
+            value = __internal__.recursive_metadata_search(metadata_list, one_key)
             if value:
                 return value
 
         return ''
+
+    @staticmethod
+    def prepare_algorithm_metadata() -> tuple:
+        """Prepares metadata with algorithm information
+        Return:
+            Returns a tuple with the name of the algorithm and a dictionary with information on the algorithm
+        """
+        return (__internal__.get_algorithm_definition_str('ALGORITHM_NAME', 'unknown'),
+               {
+                    'version': __internal__.get_algorithm_definition_str('VERSION', 'x.y'),
+                    'traits': __internal__.get_algorithm_definition_str('VARIABLE_NAMES', ''),
+                    'units': __internal__.get_algorithm_definition_str('VARIABLE_UNITS', ''),
+                    'labels': __internal__.get_algorithm_definition_str('VARIABLE_LABELS', '')
+               })
 
     @staticmethod
     def image_get_geobounds(filename: str) -> list:
@@ -378,6 +392,7 @@ class __internal__():
             except Exception as ex:
                 # Ignore an exception here since we handle it below
                 logging.debug("Exception caught while trying to open CSV file: %s", filename)
+                logging.debug("Exception: %s", str(ex))
 
             if csv_file:
                 break
@@ -390,7 +405,6 @@ class __internal__():
 
         if not csv_file:
             logging.error("Unable to open CSV file for writing: '%s'", filename)
-            logging.error("Exception: %s", str(ex))
             return False
 
         wrote_file = False
@@ -406,6 +420,8 @@ class __internal__():
         except Exception as ex:
             logging.error("Exception while writing CSV file: '%s'", filename)
             logging.error("Exception: %s", str(ex))
+            # Re-raise the exception
+            raise ex from None
         finally:
             csv_file.close()
 
@@ -695,7 +711,7 @@ def add_parameters(parser: argparse.ArgumentParser) -> None:
                     ' ' + __internal__.get_algorithm_definition_str('ALGORITHM_AUTHOR_EMAIL', '(no email)')
 
 
-def check_continue(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: dict) -> tuple:
+def check_continue(transformer: transformer_class.Transformer, check_md: dict, transformer_md: list, full_md: list) -> tuple:
     """Checks if conditions are right for continuing processing
     Arguments:
         transformer: instance of transformer class
@@ -721,7 +737,7 @@ def check_continue(transformer: transformer_class.Transformer, check_md: dict, t
     return (0) if found_image else (-1000, "Unable to find an image in the list of files")
 
 
-def perform_process(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: dict) -> dict:
+def perform_process(transformer: transformer_class.Transformer, check_md: dict, transformer_md: list, full_md: list) -> dict:
     """Performs the processing of the data
     Arguments:
         transformer: instance of transformer class
@@ -836,6 +852,14 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
         logging.warning("No entries were written to CSV files")
 
     # Prepare the return information
+    algorithm_name, algorithm_md = __internal__.prepare_algorithm_metadata()
+    algorithm_md['files_processed'] = str(num_image_files)
+    algorithm_md['lines_written'] = str(entries_written)
+    if write_geostreams_csv:
+        algorithm_md['wrote_geostreams'] = "Yes"
+    if write_betydb_csv:
+        algorithm_md['wrote_betydb'] = "Yes"
+
     file_md = []
     if entries_written:
         file_md.append({
@@ -854,5 +878,6 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
             })
 
     return {'code': 0,
-            'file': file_md
+            'file': file_md,
+            algorithm_name: algorithm_md
             }

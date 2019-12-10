@@ -120,12 +120,12 @@ class __internal__():
 class Transformer():
     """Generic class for supporting transformers
     """
-    # pylint: disable=unused-argument
     def __init__(self, **kwargs):
         """Performs initialization of class instance
         Arguments:
             kwargs: additional parameters passed in to Transformer
         """
+        # pylint: disable=unused-argument
         self.sensor = None
         self.args = None
 
@@ -177,16 +177,16 @@ class Transformer():
             'repository': {'repUrl': configuration.REPOSITORY}
         }
 
-    # pylint: disable=no-self-use
     def add_parameters(self, parser: argparse.ArgumentParser) -> None:
         """Adds processing parameters to existing parameters
         Arguments:
             parser: instance of argparse
         """
+        # pylint: disable=no-self-use
         parser.epilog = configuration.TRANSFORMER_NAME + ' version ' + configuration.TRANSFORMER_VERSION + \
                         ' author ' + configuration.AUTHOR_NAME + ' ' + configuration.AUTHOR_EMAIL
 
-    def get_transformer_params(self, args: argparse.Namespace, metadata: dict) -> dict:
+    def get_transformer_params(self, args: argparse.Namespace, metadata: list) -> dict:
         """Returns a parameter list for processing data
         Arguments:
             args: result of calling argparse.parse_args
@@ -194,20 +194,33 @@ class Transformer():
         """
         self.args = args
 
-        # Determine if we're using JSONLD
-        if 'content' in metadata:
-            parse_md = metadata['content']
-        else:
-            parse_md = metadata
-
-        # Get the season, experiment, etc information
         timestamp, season_name, experiment_name = None, None, None
-        if 'observationTimeStamp' in parse_md:
-            timestamp = parse_md['observationTimeStamp']
-        if 'season' in parse_md:
-            season_name = parse_md['season']
-        if 'studyName' in parse_md:
-            experiment_name = parse_md['studyName']
+        parsed_metadata = []
+        transformer_md = []
+
+        # Loop through the metadata
+        for one_metadata in metadata:
+            # Determine if we're using JSONLD
+            if 'content' in metadata:
+                parse_md = one_metadata['content']
+            else:
+                parse_md = one_metadata
+            parsed_metadata.append(parse_md)
+
+            # Get the season, experiment, etc information
+            if 'observationTimeStamp' in parse_md:
+                timestamp = parse_md['observationTimeStamp']
+            if 'season' in parse_md:
+                season_name = parse_md['season']
+            if 'studyName' in parse_md:
+                experiment_name = parse_md['studyName']
+
+            # Check for transformer specific metadata
+            if configuration.TRANSFORMER_NAME in parse_md:
+                if isinstance(parse_md[configuration.TRANSFORMER_NAME], list):
+                    transformer_md.extend(parse_md[configuration.TRANSFORMER_NAME])
+                else:
+                    transformer_md.append(parse_md[configuration.TRANSFORMER_NAME])
 
         # Get the list of files, if there are some and find the earliest timestamp if a timestamp
         # hasn't been specified yet
@@ -223,12 +236,6 @@ class Transformer():
                         working_timestamp = __internal__.get_first_timestamp(one_file, working_timestamp)
         if timestamp is None and working_timestamp is not None:
             timestamp = working_timestamp
-            parse_md['observationTimeStamp'] = timestamp
-
-        # Check for transformer specific metadata
-        transformer_md = None
-        if configuration.TRANSFORMER_NAME in parse_md:
-            transformer_md = parse_md[configuration.TRANSFORMER_NAME]
 
         # Prepare our parameters
         check_md = {'timestamp': timestamp,
@@ -244,5 +251,5 @@ class Transformer():
 
         return {'check_md': check_md,
                 'transformer_md': transformer_md,
-                'full_md': parse_md
+                'full_md': parsed_metadata
                }
