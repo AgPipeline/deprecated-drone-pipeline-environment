@@ -560,6 +560,8 @@ class __internal__():
             traits['citation_title'] = getattr(algorithm_rgb, 'CITATION_TITLE')
         if hasattr(algorithm_rgb, 'CITATION_YEAR') and getattr(algorithm_rgb, 'CITATION_YEAR'):
             traits['citation_year'] = getattr(algorithm_rgb, 'CITATION_YEAR')
+        if hasattr(algorithm_rgb, 'ALGORITHM_METHOD') and getattr(algorithm_rgb, 'ALGORITHM_METHOD'):
+            traits['method'] = getattr(algorithm_rgb, 'ALGORITHM_METHOD')
 
         return (fields, traits)
 
