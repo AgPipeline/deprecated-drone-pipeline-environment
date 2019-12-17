@@ -12,8 +12,8 @@ RUN python3 -m pip install --upgrade --no-cache-dir setuptools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3-gdal \
-        gdal-bin  && \
-        libgdal-dev \
+        gdal-bin   \
+        libgdal-dev  \
         gcc \
         g++ \
         python3-dev && \
@@ -38,7 +38,8 @@ RUN python3 -m pip install --upgrade --no-cache-dir \
         utm \
         matplotlib \
         Pillow \
-        scipy
+        scipy \
+        piexif
 
 # Set to the user we want to be
 USER extractor
