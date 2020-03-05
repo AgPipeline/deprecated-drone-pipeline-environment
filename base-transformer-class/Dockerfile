@@ -1,4 +1,4 @@
-FROM agpipeline/base-image:1.1
+FROM agpipeline/base-image:1.3
 LABEL maintainer="Chris Schnaufer <schnaufer@email.arizona.edu>"
 
 # Build environment values
@@ -29,7 +29,9 @@ RUN apt-get update && \
         libgdal-dev  \
         gcc \
         g++ \
-        python3-dev && \
+        python3.7-dev && \
+    python3 -m pip install --upgrade --no-cache-dir \
+        numpy && \
     python3 -m pip install --upgrade --no-cache-dir \
         pygdal==2.2.3.5 && \
     apt-get remove -y \

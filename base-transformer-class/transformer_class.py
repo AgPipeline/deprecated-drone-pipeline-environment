@@ -100,7 +100,7 @@ class __internal__():
         Return:
             The earliest found timestamp
         """
-        first_stamp = datetime.datetime.fromisoformat(timestamp)
+        first_stamp = datetime.datetime.fromisoformat(timestamp) if timestamp else None
         try:
             tags_dict = piexif.load(file_path)
             if tags_dict and "Exif" in tags_dict:
