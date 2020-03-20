@@ -9,6 +9,7 @@ import random
 import time
 import osr
 import numpy as np
+from typing import Optional
 
 import gdal
 from osgeo import ogr
@@ -148,8 +149,8 @@ class __internal__():
             The metadata is searched recursively for the key. If a key is found under the special key, it will be
             returned regardless of whether there's a key found elsewhere in the metadata
         """
-        top_found_name = None
-        return_found_name = ''
+        top_found_name = ''
+        return_found_name = None
         for metadata in metadata_list:
             for key in metadata:
                 if key == search_key:
@@ -165,7 +166,7 @@ class __internal__():
                     if temp_found_name:
                         top_found_name = str(temp_found_name)
 
-        return top_found_name if top_found_name is not None else return_found_name
+        return return_found_name if return_found_name is not None else top_found_name
 
     @staticmethod
     def find_metadata_value(metadata_list: list, key_terms: list) -> str:
@@ -312,16 +313,7 @@ class __internal__():
         Return:
             A list consisting of the date (YYYY-MM-DD) and a local timestamp (YYYY-MM-DDTHH:MM:SS)
         """
-        # Strip the offset from the string
-        time_date_sep = iso_timestamp.find('T')
-        time_offset_sep = iso_timestamp.rfind('-')
-        if 0 <= time_date_sep < time_offset_sep:
-            # We have a time offset
-            working_timestamp = iso_timestamp[: time_offset_sep]
-        else:
-            working_timestamp = iso_timestamp
-
-        timestamp = datetime.datetime.strptime(working_timestamp, "%Y-%m-%dT%H:%M:%S")
+        timestamp = datetime.datetime.fromisoformat(iso_timestamp)
 
         return [timestamp.strftime('%Y-%m-%d'), timestamp.strftime('%Y-%m-%dT%H:%M:%S')]
 
@@ -606,7 +598,7 @@ class __internal__():
         return return_list
 
     @staticmethod
-    def determine_csv_path(path_list: list) -> str:
+    def determine_csv_path(path_list: list) -> Optional[str]:
         """Iterates over the list of paths and returns the first valid one
         Arguments:
             path_list: the list of paths to iterate over
@@ -617,11 +609,15 @@ class __internal__():
             return None
 
         for one_path in path_list:
+            logging.debug("Checking csv path: %s", str(one_path))
             if not one_path:
                 continue
+            logging.debug("Checking csv path exists: %s", str(one_path))
             if os.path.exists(one_path) and os.path.isdir(one_path):
+                logging.debug("Returning CSV path: %s", str(one_path))
                 return one_path
 
+        logging.debug("Unable to find a CSV path")
         return None
 
     @staticmethod
@@ -759,6 +755,8 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
         logging.error(msg)
         return {'code': -1001, 'error': msg}
 
+    logging.debug("Working with check_md: %s", str(check_md))
+
     # Setup local variables
     variable_names = __internal__.get_algorithm_variable_list('VARIABLE_NAMES')
 
@@ -766,7 +764,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
         __internal__.determine_csv_path([transformer.args.csv_path, check_md['working_folder']]))
     logging.debug("Calculated default CSV path: %s", csv_file)
     logging.debug("Calculated geostreams CSV path: %s", geostreams_csv_file)
-    logging.debug("Calculated EBTYdb CSV path: %s", betydb_csv_file)
+    logging.debug("Calculated BETYdb CSV path: %s", betydb_csv_file)
 
     datestamp, localtime = __internal__.get_time_stamps(check_md['timestamp'])
     cultivar = __internal__.find_metadata_value(full_md, ['germplasmName', 'cultivar'])

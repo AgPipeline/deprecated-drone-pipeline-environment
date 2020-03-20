@@ -205,6 +205,9 @@ class Transformer():
                 parse_md = one_metadata['content']
             else:
                 parse_md = one_metadata
+            # Check for legacy 'pipeline' key
+            if 'pipeline' in parse_md:
+                parse_md = parse_md['pipeline']
             parsed_metadata.append(parse_md)
 
             # Get the season, experiment, etc information
