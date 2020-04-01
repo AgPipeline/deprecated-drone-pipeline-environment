@@ -5,9 +5,15 @@ import os
 import argparse
 import datetime
 import logging
+
+from terrautils.imagefile import get_epsg as tr_get_epsg, \
+                                 image_get_geobounds as tr_image_get_geobounds
+import terrautils.lemnatec
 import piexif
 
 import configuration
+
+terrautils.lemnatec.SENSOR_METADATA_CACHE = os.path.dirname(os.path.realpath(__file__))
 
 # EXIF tags to look for
 EXIF_ORIGIN_TIMESTAMP = 36867         # Capture timestamp
@@ -94,7 +100,7 @@ class __internal__():
         Return:
             The earliest found timestamp
         """
-        first_stamp = datetime.datetime.fromisoformat(timestamp)
+        first_stamp = datetime.datetime.fromisoformat(timestamp) if timestamp else None
         try:
             tags_dict = piexif.load(file_path)
             if tags_dict and "Exif" in tags_dict:
@@ -114,14 +120,21 @@ class __internal__():
 class Transformer():
     """Generic class for supporting transformers
     """
-    # pylint: disable=unused-argument
+
     def __init__(self, **kwargs):
         """Performs initialization of class instance
         Arguments:
             kwargs: additional parameters passed in to Transformer
         """
+        # pylint: disable=unused-argument
         self.sensor = None
         self.args = None
+
+    @property
+    def default_epsg(self) -> int:
+        """Returns the current working EPSG code
+        """
+        return 4326
 
     @property
     def supported_image_file_exts(self):
@@ -129,38 +142,92 @@ class Transformer():
         """
         return ['tif', 'tiff', 'jpg']
 
-    # pylint: disable=no-self-use
+    def get_image_file_epsg(self, source_path: str) -> str:
+        """Returns the EPSG of the georeferenced image file
+        Arguments:
+            source_path: the path to the image to load the EPSG code from
+        Return:
+            Returns the EPSG code loaded from the file. None is returned if there is a problem or the file
+            doesn't have an EPSG code
+        """
+        # pylint: disable=no-self-use
+        return tr_get_epsg(source_path)
+
+    def get_image_file_geobounds(self, source_path: str) -> list:
+        """Uses gdal functionality to retrieve rectilinear boundaries from the file
+        Args:
+            source_path(str): path of the file to get the boundaries from
+        Returns:
+            The upper-left and calculated lower-right boundaries of the image in a list upon success.
+            The values are returned in following order: min_y, max_y, min_x, max_x. A list of numpy.nan
+            is returned if the boundaries can't be determined
+        """
+        # pylint: disable=no-self-use
+        return tr_image_get_geobounds(source_path)
+
+    def generate_transformer_md(self) -> dict:
+        """Generates metadata about this transformer
+        Returns:
+            Returns the transformer metadata
+        """
+        # pylint: disable=no-self-use
+        return {
+            'version': configuration.TRANSFORMER_VERSION,
+            'name': configuration.TRANSFORMER_NAME,
+            'author': configuration.AUTHOR_NAME,
+            'description': configuration.TRANSFORMER_DESCRIPTION,
+            'repository': {'repUrl': configuration.REPOSITORY}
+        }
+
     def add_parameters(self, parser: argparse.ArgumentParser) -> None:
         """Adds processing parameters to existing parameters
         Arguments:
             parser: instance of argparse
         """
+        # pylint: disable=no-self-use
         parser.epilog = configuration.TRANSFORMER_NAME + ' version ' + configuration.TRANSFORMER_VERSION + \
                         ' author ' + configuration.AUTHOR_NAME + ' ' + configuration.AUTHOR_EMAIL
 
-    def get_transformer_params(self, args: argparse.Namespace, metadata: dict) -> dict:
+    def get_transformer_params(self, args: argparse.Namespace, metadata: list) -> dict:
         """Returns a parameter list for processing data
         Arguments:
             args: result of calling argparse.parse_args
             metadata: the loaded metadata
         """
+        # Disabling this warning to keep code readable
+        # pylint: disable=too-many-branches
         self.args = args
 
-        # Determine if we're using JSONLD
-        if 'content' in metadata:
-            parse_md = metadata['content']
-        else:
-            parse_md = metadata
-
-        # Get the season, experiment, etc information
         timestamp, season_name, experiment_name = None, None, None
-        if 'observationTimeStamp' in parse_md:
-            timestamp = parse_md['observationTimeStamp']
-        if 'season' in parse_md:
-            season_name = parse_md['season']
-        if 'studyName' in parse_md:
-            experiment_name = parse_md['studyName']
+        parsed_metadata = []
+        transformer_md = []
 
+        # Loop through the metadata
+        for one_metadata in metadata:
+            # Determine if we're using JSONLD
+            if 'content' in one_metadata:
+                parse_md = one_metadata['content']
+            else:
+                parse_md = one_metadata
+            # Check for legacy 'pipeline' key
+            if 'pipeline' in parse_md:
+                parse_md = parse_md['pipeline']
+            parsed_metadata.append(parse_md)
+
+            # Get the season, experiment, etc information
+            if 'observationTimeStamp' in parse_md:
+                timestamp = parse_md['observationTimeStamp']
+            if 'season' in parse_md:
+                season_name = parse_md['season']
+            if 'studyName' in parse_md:
+                experiment_name = parse_md['studyName']
+
+            # Check for transformer specific metadata
+            if configuration.TRANSFORMER_NAME in parse_md:
+                if isinstance(parse_md[configuration.TRANSFORMER_NAME], list):
+                    transformer_md.extend(parse_md[configuration.TRANSFORMER_NAME])
+                else:
+                    transformer_md.append(parse_md[configuration.TRANSFORMER_NAME])
         # Get the list of files, if there are some and find the earliest timestamp if a timestamp
         # hasn't been specified yet
         file_list = []
@@ -175,12 +242,6 @@ class Transformer():
                         working_timestamp = __internal__.get_first_timestamp(one_file, working_timestamp)
         if timestamp is None and working_timestamp is not None:
             timestamp = working_timestamp
-            parse_md['observationTimeStamp'] = timestamp
-
-        # Check for transformer specific metadata
-        transformer_md = None
-        if configuration.TRANSFORMER_NAME in parse_md:
-            transformer_md = parse_md[configuration.TRANSFORMER_NAME]
 
         # Prepare our parameters
         check_md = {'timestamp': timestamp,
@@ -189,12 +250,12 @@ class Transformer():
                     'container_name': None,
                     'target_container_name': None,
                     'trigger_name': None,
-                    'context_md': parse_md,
+                    'context_md': None,
                     'working_folder': args.working_space,
                     'list_files': lambda: file_list
                    }
 
         return {'check_md': check_md,
                 'transformer_md': transformer_md,
-                'full_md': parse_md
+                'full_md': parsed_metadata
                }
