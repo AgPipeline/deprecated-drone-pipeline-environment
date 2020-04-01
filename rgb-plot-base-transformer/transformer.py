@@ -765,7 +765,6 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     logging.debug("Calculated default CSV path: %s", csv_file)
     logging.debug("Calculated geostreams CSV path: %s", geostreams_csv_file)
     logging.debug("Calculated BETYdb CSV path: %s", betydb_csv_file)
-
     datestamp, localtime = __internal__.get_time_stamps(check_md['timestamp'])
     cultivar = __internal__.find_metadata_value(full_md, ['germplasmName', 'cultivar'])
 

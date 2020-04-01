@@ -120,6 +120,7 @@ class __internal__():
 class Transformer():
     """Generic class for supporting transformers
     """
+
     def __init__(self, **kwargs):
         """Performs initialization of class instance
         Arguments:
@@ -224,7 +225,6 @@ class Transformer():
                     transformer_md.extend(parse_md[configuration.TRANSFORMER_NAME])
                 else:
                     transformer_md.append(parse_md[configuration.TRANSFORMER_NAME])
-
         # Get the list of files, if there are some and find the earliest timestamp if a timestamp
         # hasn't been specified yet
         file_list = []
