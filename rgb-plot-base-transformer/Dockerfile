@@ -28,4 +28,3 @@ RUN [ -s /home/extractor/requirements.txt ] && \
 USER extractor
 
 COPY *.py /home/extractor/
-
