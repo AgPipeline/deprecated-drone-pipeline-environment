@@ -5,11 +5,11 @@ import os
 import argparse
 import datetime
 import logging
-import piexif
 
 from terrautils.imagefile import get_epsg as tr_get_epsg, \
                                  image_get_geobounds as tr_image_get_geobounds
 import terrautils.lemnatec
+import piexif
 
 import configuration
 
@@ -150,6 +150,7 @@ class Transformer():
             Returns the EPSG code loaded from the file. None is returned if there is a problem or the file
             doesn't have an EPSG code
         """
+        # pylint: disable=no-self-use
         return tr_get_epsg(source_path)
 
     def get_image_file_geobounds(self, source_path: str) -> list:
@@ -193,6 +194,8 @@ class Transformer():
             args: result of calling argparse.parse_args
             metadata: the loaded metadata
         """
+        # Disabling this warning to keep code readable
+        # pylint: disable=too-many-branches
         self.args = args
 
         timestamp, season_name, experiment_name = None, None, None
@@ -202,7 +205,7 @@ class Transformer():
         # Loop through the metadata
         for one_metadata in metadata:
             # Determine if we're using JSONLD
-            if 'content' in metadata:
+            if 'content' in one_metadata:
                 parse_md = one_metadata['content']
             else:
                 parse_md = one_metadata

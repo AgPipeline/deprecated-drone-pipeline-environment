@@ -7,9 +7,9 @@ import math
 import os
 import random
 import time
+from typing import Optional
 import osr
 import numpy as np
-from typing import Optional
 
 import gdal
 from osgeo import ogr
@@ -191,12 +191,12 @@ class __internal__():
             Returns a tuple with the name of the algorithm and a dictionary with information on the algorithm
         """
         return (__internal__.get_algorithm_definition_str('ALGORITHM_NAME', 'unknown'),
-               {
+                {
                     'version': __internal__.get_algorithm_definition_str('VERSION', 'x.y'),
                     'traits': __internal__.get_algorithm_definition_str('VARIABLE_NAMES', ''),
                     'units': __internal__.get_algorithm_definition_str('VARIABLE_UNITS', ''),
                     'labels': __internal__.get_algorithm_definition_str('VARIABLE_LABELS', '')
-               })
+                })
 
     @staticmethod
     def image_get_geobounds(filename: str) -> list:
@@ -747,7 +747,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     """
     # pylint: disable=unused-argument
     # The following pylint disables are here because to satisfy them would make the code unreadable
-    # pylint: disable=too-many-statements, too-many-locals
+    # pylint: disable=too-many-statements, too-many-locals, too-many-branches
 
     # Environment checking
     if not hasattr(algorithm_rgb, 'calculate'):
