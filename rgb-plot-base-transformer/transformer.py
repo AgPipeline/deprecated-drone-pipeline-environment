@@ -7,6 +7,7 @@ import math
 import os
 import random
 import time
+from typing import Optional
 import osr
 import numpy as np
 
@@ -136,52 +137,66 @@ class __internal__():
         return return_labels
 
     @staticmethod
-    def recursive_metadata_search(metadata: dict, search_key: str, special_key: str = None) -> str:
+    def recursive_metadata_search(metadata_list: list, search_key: str, special_key: str = None) -> str:
         """Performs a depth-first search for the key in the metadata and returns the found value
         Arguments:
-            metadata: the metadata in which to look
+            metadata_list: the metadata in which to look
             search_key: the key to look for in the metadata
             special_key: optional special key to look up the key under. If specified and found, the found value takes precedence
         Return:
             Returns the found key value, or an empty string
         Notes:
-            The metadata is searched recursively for the key as additional metadata dictionary values are found
-            If a key is found under the special key, it will be returned regardless of whether there's a
-            key found elsewhere in the metadata
+            The metadata is searched recursively for the key. If a key is found under the special key, it will be
+            returned regardless of whether there's a key found elsewhere in the metadata
         """
-        top_found_name = None
-        return_found_name = ''
-        for key in metadata:
-            if key == search_key:
-                top_found_name = metadata[key]
-            if special_key and key == special_key:
-                if isinstance(metadata[key], dict):
-                    temp_found_name = __internal__.recursive_metadata_search(metadata[key], search_key, special_key)
+        top_found_name = ''
+        return_found_name = None
+        for metadata in metadata_list:
+            for key in metadata:
+                if key == search_key:
+                    top_found_name = metadata[key]
+                if special_key and key == special_key:
+                    if isinstance(metadata[key], dict):
+                        temp_found_name = __internal__.recursive_metadata_search([metadata[key]], search_key, special_key)
+                        if temp_found_name:
+                            return_found_name = str(temp_found_name)
+                            break
+                elif isinstance(metadata[key], dict):
+                    temp_found_name = __internal__.recursive_metadata_search([metadata[key]], search_key, special_key)
                     if temp_found_name:
-                        return_found_name = str(temp_found_name)
-                        break
-            elif isinstance(metadata[key], dict):
-                temp_found_name = __internal__.recursive_metadata_search(metadata[key], search_key, special_key)
-                if temp_found_name:
-                    top_found_name = str(temp_found_name)
+                        top_found_name = str(temp_found_name)
 
-        return top_found_name if top_found_name is not None else return_found_name
+        return return_found_name if return_found_name is not None else top_found_name
 
     @staticmethod
-    def find_metadata_value(metadata: dict, key_terms: list) -> str:
+    def find_metadata_value(metadata_list: list, key_terms: list) -> str:
         """Returns the first found value associated with a key
         Arguments:
-            metadata: the metadata to search
+            metadata_list: the metadata to search
             key_terms: the keys to look for
         Returns:
             Returns the found value or an empty string
         """
         for one_key in key_terms:
-            value = __internal__.recursive_metadata_search(metadata, one_key)
+            value = __internal__.recursive_metadata_search(metadata_list, one_key)
             if value:
                 return value
 
         return ''
+
+    @staticmethod
+    def prepare_algorithm_metadata() -> tuple:
+        """Prepares metadata with algorithm information
+        Return:
+            Returns a tuple with the name of the algorithm and a dictionary with information on the algorithm
+        """
+        return (__internal__.get_algorithm_definition_str('ALGORITHM_NAME', 'unknown'),
+                {
+                    'version': __internal__.get_algorithm_definition_str('VERSION', 'x.y'),
+                    'traits': __internal__.get_algorithm_definition_str('VARIABLE_NAMES', ''),
+                    'units': __internal__.get_algorithm_definition_str('VARIABLE_UNITS', ''),
+                    'labels': __internal__.get_algorithm_definition_str('VARIABLE_LABELS', '')
+                })
 
     @staticmethod
     def image_get_geobounds(filename: str) -> list:
@@ -298,7 +313,7 @@ class __internal__():
         Return:
             A list consisting of the date (YYYY-MM-DD) and a local timestamp (YYYY-MM-DDTHH:MM:SS)
         """
-        timestamp = datetime.datetime.strptime(iso_timestamp, "%Y-%m-%dT%H:%M:%S%z")
+        timestamp = datetime.datetime.fromisoformat(iso_timestamp)
 
         return [timestamp.strftime('%Y-%m-%d'), timestamp.strftime('%Y-%m-%dT%H:%M:%S')]
 
@@ -369,6 +384,7 @@ class __internal__():
             except Exception as ex:
                 # Ignore an exception here since we handle it below
                 logging.debug("Exception caught while trying to open CSV file: %s", filename)
+                logging.debug("Exception: %s", str(ex))
 
             if csv_file:
                 break
@@ -381,7 +397,6 @@ class __internal__():
 
         if not csv_file:
             logging.error("Unable to open CSV file for writing: '%s'", filename)
-            logging.error("Exception: %s", str(ex))
             return False
 
         wrote_file = False
@@ -397,6 +412,8 @@ class __internal__():
         except Exception as ex:
             logging.error("Exception while writing CSV file: '%s'", filename)
             logging.error("Exception: %s", str(ex))
+            # Re-raise the exception
+            raise ex from None
         finally:
             csv_file.close()
 
@@ -535,6 +552,8 @@ class __internal__():
             traits['citation_title'] = getattr(algorithm_rgb, 'CITATION_TITLE')
         if hasattr(algorithm_rgb, 'CITATION_YEAR') and getattr(algorithm_rgb, 'CITATION_YEAR'):
             traits['citation_year'] = getattr(algorithm_rgb, 'CITATION_YEAR')
+        if hasattr(algorithm_rgb, 'ALGORITHM_METHOD') and getattr(algorithm_rgb, 'ALGORITHM_METHOD'):
+            traits['method'] = getattr(algorithm_rgb, 'ALGORITHM_METHOD')
 
         return (fields, traits)
 
@@ -577,6 +596,29 @@ class __internal__():
                 return_list.append(one_file)
 
         return return_list
+
+    @staticmethod
+    def determine_csv_path(path_list: list) -> Optional[str]:
+        """Iterates over the list of paths and returns the first valid one
+        Arguments:
+            path_list: the list of paths to iterate over
+        Return:
+            The first found path that exists, or None if no paths are found
+        """
+        if not path_list:
+            return None
+
+        for one_path in path_list:
+            logging.debug("Checking csv path: %s", str(one_path))
+            if not one_path:
+                continue
+            logging.debug("Checking csv path exists: %s", str(one_path))
+            if os.path.exists(one_path) and os.path.isdir(one_path):
+                logging.debug("Returning CSV path: %s", str(one_path))
+                return one_path
+
+        logging.debug("Unable to find a CSV path")
+        return None
 
     @staticmethod
     def get_csv_file_names(csv_path: str) -> list:
@@ -657,7 +699,8 @@ def add_parameters(parser: argparse.ArgumentParser) -> None:
                          ' version ' + __internal__.get_algorithm_definition_str('VERSION', 'x.y')
 
     parser.add_argument('--csv_path', help='the path to use when generating the CSV files')
-    parser.add_argument('--geostreams_csv', action='store_true', help='override to always create the TERRA REF Geostreams-compatible CSV file')
+    parser.add_argument('--geostreams_csv', action='store_true',
+                        help='override to always create the TERRA REF Geostreams-compatible CSV file')
     parser.add_argument('--betydb_csv', action='store_true', help='override to always create the BETYdb-compatible CSV file')
 
     parser.epilog = 'The following files are created in the specified csv path by default: ' + \
@@ -666,7 +709,7 @@ def add_parameters(parser: argparse.ArgumentParser) -> None:
                     ' ' + __internal__.get_algorithm_definition_str('ALGORITHM_AUTHOR_EMAIL', '(no email)')
 
 
-def check_continue(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: dict) -> tuple:
+def check_continue(transformer: transformer_class.Transformer, check_md: dict, transformer_md: list, full_md: list) -> tuple:
     """Checks if conditions are right for continuing processing
     Arguments:
         transformer: instance of transformer class
@@ -692,7 +735,7 @@ def check_continue(transformer: transformer_class.Transformer, check_md: dict, t
     return (0) if found_image else (-1000, "Unable to find an image in the list of files")
 
 
-def perform_process(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: dict) -> dict:
+def perform_process(transformer: transformer_class.Transformer, check_md: dict, transformer_md: list, full_md: list) -> dict:
     """Performs the processing of the data
     Arguments:
         transformer: instance of transformer class
@@ -704,7 +747,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     """
     # pylint: disable=unused-argument
     # The following pylint disables are here because to satisfy them would make the code unreadable
-    # pylint: disable=too-many-statements, too-many-locals
+    # pylint: disable=too-many-statements, too-many-locals, too-many-branches
 
     # Environment checking
     if not hasattr(algorithm_rgb, 'calculate'):
@@ -712,16 +755,23 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
         logging.error(msg)
         return {'code': -1001, 'error': msg}
 
+    logging.debug("Working with check_md: %s", str(check_md))
+
     # Setup local variables
     variable_names = __internal__.get_algorithm_variable_list('VARIABLE_NAMES')
 
-    csv_file, geostreams_csv_file, betydb_csv_file = __internal__.get_csv_file_names(transformer.args.csv_path)
-
+    csv_file, geostreams_csv_file, betydb_csv_file = __internal__.get_csv_file_names(
+        __internal__.determine_csv_path([transformer.args.csv_path, check_md['working_folder']]))
+    logging.debug("Calculated default CSV path: %s", csv_file)
+    logging.debug("Calculated geostreams CSV path: %s", geostreams_csv_file)
+    logging.debug("Calculated BETYdb CSV path: %s", betydb_csv_file)
     datestamp, localtime = __internal__.get_time_stamps(check_md['timestamp'])
     cultivar = __internal__.find_metadata_value(full_md, ['germplasmName', 'cultivar'])
 
     write_geostreams_csv = transformer.args.geostreams_csv or __internal__.get_algorithm_definition_bool('WRITE_GEOSTREAMS_CSV', True)
     write_betydb_csv = transformer.args.betydb_csv or __internal__.get_algorithm_definition_bool('WRITE_BETYDB_CSV', True)
+    logging.info("Writing geostreams csv file: %s", "True" if write_geostreams_csv else "False")
+    logging.info("Writing BETYdb csv file: %s", "True" if write_betydb_csv else "False")
 
     # Get default values and adjust as needed
     (csv_fields, csv_traits) = __internal__.get_csv_traits_table(variable_names)
@@ -800,4 +850,33 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     if entries_written == 0:
         logging.warning("No entries were written to CSV files")
 
-    return {'code': 0}
+    # Prepare the return information
+    algorithm_name, algorithm_md = __internal__.prepare_algorithm_metadata()
+    algorithm_md['files_processed'] = str(num_image_files)
+    algorithm_md['lines_written'] = str(entries_written)
+    if write_geostreams_csv:
+        algorithm_md['wrote_geostreams'] = "Yes"
+    if write_betydb_csv:
+        algorithm_md['wrote_betydb'] = "Yes"
+
+    file_md = []
+    if entries_written:
+        file_md.append({
+            'path': csv_file,
+            'key': 'csv'
+        })
+        if write_geostreams_csv:
+            file_md.append({
+                'path': geostreams_csv_file,
+                'key': 'csv'
+            })
+        if write_betydb_csv:
+            file_md.append({
+                'path': betydb_csv_file,
+                'key': 'csv'
+            })
+
+    return {'code': 0,
+            'file': file_md,
+            algorithm_name: algorithm_md
+            }

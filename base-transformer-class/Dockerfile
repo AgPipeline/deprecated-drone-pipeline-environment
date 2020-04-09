@@ -1,5 +1,18 @@
-FROM agpipeline/base-image:1.0
+FROM agpipeline/base-image:1.3
 LABEL maintainer="Chris Schnaufer <schnaufer@email.arizona.edu>"
+
+# Build environment values
+ARG arg_terrautil_url=https://github.com/terraref/terrautils.git
+ENV terrautil_url=$arg_terrautil_url
+
+ARG arg_terrautil_branch=master
+ENV terrautil_branch=$arg_terrautil_branch
+
+ARG arg_sensor_url=https://github.com/terraref/sensor-metadata.git
+ENV sensor_url=$arg_sensor_url
+
+ARG arg_sensor_branch=master
+ENV sensor_branch=$arg_sensor_branch
 
 # We need to explicitly set the user to root to install in system folders
 USER root
@@ -16,7 +29,9 @@ RUN apt-get update && \
         libgdal-dev  \
         gcc \
         g++ \
-        python3-dev && \
+        python3.7-dev && \
+    python3 -m pip install --upgrade --no-cache-dir \
+        numpy && \
     python3 -m pip install --upgrade --no-cache-dir \
         pygdal==2.2.3.5 && \
     apt-get remove -y \
@@ -39,7 +54,25 @@ RUN python3 -m pip install --upgrade --no-cache-dir \
         matplotlib \
         Pillow \
         scipy \
-        piexif
+        piexif \
+        cryptography
+
+# Install from source
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git && \
+    git clone $terrautil_url --branch $terrautil_branch --single-branch "/home/extractor/terrautil" && \
+    python3 -m pip install "/home/extractor/terrautil/" && \
+    rm -rf /home/extractor/terrautil && \
+    git clone $sensor_url --branch $sensor_branch --single-branch "/home/extractor/sensor-metadata" && \
+    mv "/home/extractor/sensor-metadata/sensors" "/home/extractor/sensors" && \
+    rm -rf /home/extractor/sensor-metadata && \
+    apt-get remove -y \
+        git && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf ~/.cache/pip
 
 # Set to the user we want to be
 USER extractor
