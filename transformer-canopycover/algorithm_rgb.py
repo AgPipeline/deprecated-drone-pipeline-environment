@@ -60,7 +60,7 @@ def calculate_canopycover_masked(pxarray: np.ndarray) -> float:
     nodata = np.count_nonzero(pxarray[:, :, 2] == 0)
     nodata_ratio = nodata / float(total_size)
     if nodata_ratio > 0.75:
-        return -100
+        return -1
 
     # For masked images, all pixels with rgb>0,0,0 are considered canopy
     data = pxarray[pxarray[:, :, 2] == 255]
@@ -69,7 +69,7 @@ def calculate_canopycover_masked(pxarray: np.ndarray) -> float:
     # Scale ratio from 0-1 to 0-100
     ratio *= 100.0
 
-    return 700
+    return ratio
 
 
 # Entry point for plot-level RBG algorithm
