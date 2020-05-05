@@ -648,19 +648,25 @@ class __internal__():
         if isinstance(calc_value, set):
             raise RuntimeError("A 'set' type of data was returned and isn't supported. Please use a list or a tuple instead")
 
+        # Special case handling for special return dict (values and other stuff)
+        if isinstance(calc_value, dict) and 'values' in calc_value:
+            values_result = calc_value['values']
+        else:
+            values_result = calc_value
+
         # Get the values into list form
         values = []
         len_variable_names = len(variable_names)
-        if isinstance(calc_value, dict):
+        if isinstance(values_result, dict):
             # Assume the dictionary is going to have field names with their values
             # We check whether we have the correct number of fields later. This also
             # filters out extra fields
             values = []
             for key in variable_names:
-                if key in calc_value:
-                    values.append(calc_value[key])
-        elif not isinstance(calc_value, (list, tuple)):
-            values = [calc_value]
+                if key in values_result:
+                    values.append(values_result[key])
+        elif not isinstance(values_result, (list, tuple)):
+            values = [values_result]
 
         # Sanity check our values
         len_calc_value = len(values)
@@ -787,6 +793,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     # Process the image files
     num_image_files = 0
     entries_written = 0
+    additional_files_list = []
     for one_file in __internal__.filter_file_list_by_ext(check_md['list_files'](), transformer.supported_image_file_exts):
 
         plot_name = None
@@ -803,6 +810,9 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
             logging.debug("Calculated value is %s for file: %s", str(calc_value), one_file)
             if calc_value is None:
                 continue
+
+            if isinstance(calc_value, dict) and 'file' in calc_value and calc_value['file']:
+                additional_files_list.extend(calc_value['file'])
 
             values = __internal__.validate_calc_value(calc_value, variable_names)
             logging.debug("Verified values are %s", str(values))
@@ -875,6 +885,17 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
                 'path': betydb_csv_file,
                 'key': 'csv'
             })
+
+    for one_file in additional_files_list:
+        file_path = str(one_file)
+        if not os.path.exists(file_path):
+            logging.warning("Additional return file not found to return: '%s'", file_path)
+            continue
+        logging.info("Adding additional file to results: '%s'", file_path)
+        file_md.append({
+            'path': file_path,
+            'key': os.path.splitext(file_path)[1].lstrip('.')
+        })
 
     return {'code': 0,
             'file': file_md,
