@@ -27,5 +27,4 @@ RUN [ -s /home/extractor/requirements.txt ] && \
      rm /home/extractor/requirements.txt)
 
 USER extractor
-
 COPY algorithm_rgb.py /home/extractor/

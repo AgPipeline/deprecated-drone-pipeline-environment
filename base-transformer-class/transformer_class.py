@@ -214,7 +214,7 @@ class Transformer():
                 parse_md = parse_md['pipeline']
             parsed_metadata.append(parse_md)
 
-            # Get the season, experiment.yml, etc information
+            # Get the season, experiment, etc information
             if 'observationTimeStamp' in parse_md:
                 timestamp = parse_md['observationTimeStamp']
             if 'season' in parse_md:
@@ -240,9 +240,9 @@ class Transformer():
                     # Only bother to get a timestamp if we don't have one specified
                     if timestamp is None:
                         working_timestamp = __internal__.get_first_timestamp(one_file, working_timestamp)
-        if working_timestamp is not None:
+        if timestamp is None and working_timestamp is not None:
             timestamp = working_timestamp
-        else:
+        elif timestamp is None and working_timestamp is None:
             timestamp = str(datetime.datetime.now())
 
         # Prepare our parameters
