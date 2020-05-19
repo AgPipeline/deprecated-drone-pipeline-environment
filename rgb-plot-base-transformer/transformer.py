@@ -309,11 +309,6 @@ class __internal__():
 
     @staticmethod
     def get_time_stamps(iso_timestamp: str) -> list:
-        print("IAMREACHINGTHISONE")
-        print("IAMREACHINGTHISONE")
-        print("IAMREACHINGTHISONE")
-        print("IAMREACHINGTHISONE")
-
         """Returns the date and the local time (offset is stripped) derived from the passed in timestamp
         Return:
             A list consisting of the date (YYYY-MM-DD) and a local timestamp (YYYY-MM-DDTHH:MM:SS)
