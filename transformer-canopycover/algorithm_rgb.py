@@ -47,16 +47,25 @@ WRITE_BETYDB_CSV = True
 WRITE_GEOSTREAMS_CSV = True
 
 
-def calculate_canopycover_masked(pxarray) -> float:
+def calculate_canopycover_masked(pxarray: np.ndarray) -> float:
     """Return greenness percentage of given numpy array of pixels.
-    Args:
-      pxarray (numpy array): rgb image
-    Return:
+    Arguments:
+      pxarray (numpy array): rgba image where alpha 255=data and alpha 0=NoData
+    Returns:
       (float): greenness percentage
     """
-    # For masked images, all nonzero pixels are considered canopy
-    nonzeros = np.count_nonzero(pxarray)
-    ratio = nonzeros/float(pxarray.size)
+
+    # If > 75% is NoData, return a -1 ccvalue for omission later
+    total_size = pxarray.shape[0] * pxarray.shape[1]
+    nodata = np.count_nonzero(pxarray[:, :, 3] == 0)
+    nodata_ratio = nodata / float(total_size)
+    if nodata_ratio > 0.75:
+        return -1
+
+    # For masked images, all pixels with rgb>0,0,0 are considered canopy
+    data = pxarray[pxarray[:, :, 3] == 255]
+    canopy = len(data[np.sum(data[:, 0:3], 1) > 0])
+    ratio = canopy / float(total_size - nodata)
     # Scale ratio from 0-1 to 0-100
     ratio *= 100.0
 
