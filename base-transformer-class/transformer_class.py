@@ -240,10 +240,11 @@ class Transformer():
                     # Only bother to get a timestamp if we don't have one specified
                     if timestamp is None:
                         working_timestamp = __internal__.get_first_timestamp(one_file, working_timestamp)
-        if timestamp is None and working_timestamp is not None:
-            timestamp = working_timestamp
+        if timestamp is None:
+            timestamp = working_timestamp if working_timestamp else datetime.datetime.now().isoformat()
 
         # Prepare our parameters
+
         check_md = {'timestamp': timestamp,
                     'season': season_name,
                     'experiment': experiment_name,
