@@ -247,7 +247,7 @@ class Transformer():
 
         check_md = {'timestamp': timestamp,
                     'season': season_name,
-                    'experiment.yml': experiment_name,
+                    'experiment': experiment_name,
                     'container_name': None,
                     'target_container_name': None,
                     'trigger_name': None,
